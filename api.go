@@ -20,7 +20,7 @@ type Release struct {
 }
 
 type Commit struct {
-	Sha string `json:"sha"`
+	SHA string `json:"sha"`
 }
 
 type Compare struct {
@@ -57,23 +57,26 @@ type ReleaseRequest struct {
 	DiscussionCategoryName *string `json:"discussion_category_name,omit_empty"`
 }
 
-type CreateTagRequest struct {
-	Tag     string `json:"tag"`
-	Message string `json:"message"`
-	Object  string `json:"object"`
-	Type    string `json:"type"`
-	Draft   bool   `json:"draft"`
-}
+type ReleaseCreateRequest ReleaseRequest
+type ReleaseUpdateRequest ReleaseRequest
 
 type Tag struct {
 	Tag string `json:"tag"`
-	Sha string `json:"sha"`
 }
 
 type Client struct {
 	api.RESTClient
 	Owner string
 	Repo  string
+}
+
+type commitClient struct {
+	*Client
+	Commit string
+}
+
+type releaseClient struct {
+	*Client
 }
 
 func NewClient(client api.RESTClient, owner, repo string) *Client {
@@ -84,31 +87,20 @@ func NewClient(client api.RESTClient, owner, repo string) *Client {
 	}
 }
 
-func (c *Client) LatestCommit() (*Commit, error) {
-	path := fmt.Sprintf("repos/%s/%s/commits?page=1&per_page=1", c.Owner, c.Repo)
-	var commits []Commit
-	err := c.RESTClient.Get(path, &commits)
-	if err != nil {
-		return nil, err
+func (c *Client) Commits(commit string) *commitClient {
+	return &commitClient{
+		Client: c,
+		Commit: commit,
 	}
-	if len(commits) == 0 {
-		return &Commit{}, nil
-	}
-	return &commits[0], nil
 }
 
-func (c *Client) CreateTag(req *CreateTagRequest) (*Tag, error) {
-	path := fmt.Sprintf("repos/%s/%s/git/tags", c.Owner, c.Repo)
-	b, err := json.Marshal(req)
-	if err != nil {
-		return nil, err
+func (c *Client) Releases() *releaseClient {
+	return &releaseClient{
+		Client: c,
 	}
-	var tag Tag
-	err = c.RESTClient.Post(path, bytes.NewBuffer(b), &tag)
-	return &tag, err
 }
 
-func (c *Client) CreateRelease(req *ReleaseRequest) (*Release, error) {
+func (c *releaseClient) Create(req *ReleaseCreateRequest) (*Release, error) {
 	path := fmt.Sprintf("repos/%s/%s/releases", c.Owner, c.Repo)
 	b, err := json.Marshal(req)
 	if err != nil {
@@ -119,7 +111,7 @@ func (c *Client) CreateRelease(req *ReleaseRequest) (*Release, error) {
 	return &release, err
 }
 
-func (c *Client) UpdateRelease(req *ReleaseRequest) (*Release, error) {
+func (c *releaseClient) Update(req *ReleaseUpdateRequest) (*Release, error) {
 	path := fmt.Sprintf("repos/%s/%s/releases/%d", c.Owner, c.Repo, req.ID)
 	b, err := json.Marshal(req)
 	if err != nil {
@@ -130,7 +122,7 @@ func (c *Client) UpdateRelease(req *ReleaseRequest) (*Release, error) {
 	return &release, err
 }
 
-func (c *Client) Release(tag string) (*Release, error) {
+func (c *releaseClient) Tags(tag string) (*Release, error) {
 	path := fmt.Sprintf("repos/%s/%s/releases/tags/%s", c.Owner, c.Repo, tag)
 	var release Release
 	err := c.RESTClient.Get(path, &release)
@@ -171,8 +163,8 @@ func (c *Client) Compare(prevTag, newTag string) (*Compare, error) {
 	return &compare, err
 }
 
-func (c *Client) PullsByCommit(commit string) ([]*Pull, error) {
-	path := fmt.Sprintf("repos/%s/%s/commits/%s/pulls", c.Owner, c.Repo, commit)
+func (c *commitClient) Pulls() ([]*Pull, error) {
+	path := fmt.Sprintf("repos/%s/%s/commits/%s/pulls", c.Owner, c.Repo, c.Commit)
 	var pulls []*Pull
 	err := c.RESTClient.Get(path, &pulls)
 	return pulls, err

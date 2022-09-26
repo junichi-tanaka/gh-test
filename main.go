@@ -26,7 +26,7 @@ func commitsToPulls(client *Client, commits []*Commit) ([]*Pull, error) {
 	pulls := []*Pull{}
 
 	for _, c := range commits {
-		commitPulls, err := client.PullsByCommit(c.Sha)
+		commitPulls, err := client.Commits(c.SHA).Pulls()
 		if err != nil {
 			return nil, err
 		}
@@ -65,13 +65,13 @@ func realMain(releaseTag, labelInclusive string) int {
 
 	client := NewClient(restClient, repo.Owner(), repo.Name())
 
-	release, err := client.Release(releaseTag)
+	release, err := client.Releases().Tags(releaseTag)
 	if err != nil {
 		if !IsNotFound(err) {
 			fmt.Println(err)
 			return NG
 		} else {
-			req := &ReleaseRequest{
+			req := &ReleaseCreateRequest{
 				Name:                   releaseTag,
 				TagName:                releaseTag,
 				Body:                   "",
@@ -80,7 +80,7 @@ func realMain(releaseTag, labelInclusive string) int {
 				GenerateReleaseNotes:   false,
 				DiscussionCategoryName: nil,
 			}
-			release, err = client.CreateRelease(req)
+			release, err = client.Releases().Create(req)
 			if err != nil {
 				fmt.Println(err)
 				return NG
@@ -122,7 +122,7 @@ func realMain(releaseTag, labelInclusive string) int {
 		builder.WriteString(line)
 	}
 
-	req := &ReleaseRequest{
+	req := &ReleaseUpdateRequest{
 		ID:                     release.ID,
 		Name:                   releaseTag,
 		TagName:                releaseTag,
@@ -132,7 +132,7 @@ func realMain(releaseTag, labelInclusive string) int {
 		GenerateReleaseNotes:   false,
 		DiscussionCategoryName: nil,
 	}
-	release, err = client.UpdateRelease(req)
+	release, err = client.Releases().Update(req)
 	if err != nil {
 		fmt.Println(err)
 		return NG
