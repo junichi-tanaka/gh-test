@@ -17,6 +17,11 @@ const (
 	tagSeparator = "/"
 )
 
+type Flags struct {
+	Tag            string
+	LabelInclusive string
+}
+
 func commitsToPulls(client *Client, commits []*Commit) ([]*Pull, error) {
 	pulls := []*Pull{}
 
@@ -45,21 +50,20 @@ func filterPulls(pulls []*Pull, labelInclusive string) []*Pull {
 	return filtered
 }
 
-type Flags struct {
-	Owner          string
-	Repo           string
-	Tag            string
-	LabelInclusive string
-}
+func realMain(releaseTag, labelInclusive string) int {
+	repo, err := gh.CurrentRepository()
+	if err != nil {
+		fmt.Println(err)
+		return NG
+	}
 
-func realMain(owner, repo, releaseTag, labelInclusive string) int {
 	restClient, err := gh.RESTClient(nil)
 	if err != nil {
 		fmt.Println(err)
 		return NG
 	}
 
-	client := NewClient(restClient, owner, repo)
+	client := NewClient(restClient, repo.Owner(), repo.Name())
 
 	release, err := client.Release(releaseTag)
 	if err != nil {
@@ -139,11 +143,9 @@ func realMain(owner, repo, releaseTag, labelInclusive string) int {
 
 func main() {
 	var f Flags
-	flag.StringVar(&f.Owner, "owner", "", "repository owner")
-	flag.StringVar(&f.Repo, "repo", "", "repository name")
 	flag.StringVar(&f.Tag, "tag", "", "release tag")
 	flag.StringVar(&f.LabelInclusive, "label-inclusive", "", "label in pull request inclusive")
 	flag.Parse()
 
-	os.Exit(realMain(f.Owner, f.Repo, f.Tag, f.LabelInclusive))
+	os.Exit(realMain(f.Tag, f.LabelInclusive))
 }
