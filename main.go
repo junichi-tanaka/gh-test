@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -42,6 +43,13 @@ func filterPulls(pulls []*Pull, labelInclusive string) []*Pull {
 	}
 
 	return filtered
+}
+
+type Flags struct {
+	Owner          string
+	Repo           string
+	Tag            string
+	LabelInclusive string
 }
 
 func realMain(owner, repo, releaseTag, labelInclusive string) int {
@@ -130,10 +138,12 @@ func realMain(owner, repo, releaseTag, labelInclusive string) int {
 }
 
 func main() {
-	owner := "owner name of the reposigory"
-	repo := "the target repository name"
-	releaseTag := "the tag name for the next release"
-	labelInclusive := "label of the pull request to be included in the release note"
+	var f Flags
+	flag.StringVar(&f.Owner, "owner", "", "repository owner")
+	flag.StringVar(&f.Repo, "repo", "", "repository name")
+	flag.StringVar(&f.Tag, "tag", "", "release tag")
+	flag.StringVar(&f.LabelInclusive, "label-inclusive", "", "label in pull request inclusive")
+	flag.Parse()
 
-	os.Exit(realMain(owner, repo, releaseTag, labelInclusive))
+	os.Exit(realMain(f.Owner, f.Repo, f.Tag, f.LabelInclusive))
 }
