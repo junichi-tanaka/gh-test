@@ -6,20 +6,21 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh"
-	"github.com/cli/go-gh/pkg/api"
 	"golang.org/x/exp/slices"
 )
 
 const (
 	OK = iota
 	NG
+
+	tagSeparator = "/"
 )
 
-func commitsToPulls(client api.RESTClient, owner, repo string, commits []*Commit) ([]*Pull, error) {
+func commitsToPulls(client *Client, commits []*Commit) ([]*Pull, error) {
 	pulls := []*Pull{}
 
 	for _, c := range commits {
-		commitPulls, err := GetCommitPulls(client, owner, repo, c.Sha)
+		commitPulls, err := client.PullsByCommit(c.Sha)
 		if err != nil {
 			return nil, err
 		}
@@ -44,21 +45,21 @@ func filterPulls(pulls []*Pull, labelInclusive string) []*Pull {
 }
 
 func realMain(owner, repo, releaseTag, labelInclusive string) int {
-	client, err := gh.RESTClient(nil)
+	restClient, err := gh.RESTClient(nil)
 	if err != nil {
 		fmt.Println(err)
 		return NG
 	}
 
-	release, err := GetRelease(client, owner, repo, releaseTag)
+	client := NewClient(restClient, owner, repo)
+
+	release, err := client.Release(releaseTag)
 	if err != nil {
 		if !IsNotFound(err) {
 			fmt.Println(err)
 			return NG
 		} else {
 			req := &ReleaseRequest{
-				Owner:                  owner,
-				Repo:                   repo,
 				Name:                   releaseTag,
 				TagName:                releaseTag,
 				Body:                   "",
@@ -67,7 +68,7 @@ func realMain(owner, repo, releaseTag, labelInclusive string) int {
 				GenerateReleaseNotes:   false,
 				DiscussionCategoryName: nil,
 			}
-			release, err = CreateRelease(client, req)
+			release, err = client.CreateRelease(req)
 			if err != nil {
 				fmt.Println(err)
 				return NG
@@ -75,24 +76,27 @@ func realMain(owner, repo, releaseTag, labelInclusive string) int {
 		}
 	}
 
-	prev, err := GetPrevRelease(client, owner, repo, releaseTag)
+	parts := strings.SplitN(releaseTag, tagSeparator, 2)
+	prefix := parts[0]
+
+	prev, err := client.PrevRelease(releaseTag, prefix)
 	if err != nil && !IsNotFound(err) {
 		fmt.Println(err)
 		return NG
 	}
 
-    compareSince := prev.TagName
-    if compareSince == "" {
-        compareSince = fmt.Sprintf("%s@{1990-01-01}", release.TargetCommitish)
-    }
+	compareSince := prev.TagName
+	if compareSince == "" {
+		compareSince = fmt.Sprintf("%s@{1990-01-01}", release.TargetCommitish)
+	}
 
-	comp, err := GetCompare(client, owner, repo, compareSince, release.TagName)
+	comp, err := client.Compare(compareSince, release.TagName)
 	if err != nil {
 		fmt.Println(err)
 		return NG
 	}
 
-	pulls, err := commitsToPulls(client, owner, repo, comp.Commits)
+	pulls, err := commitsToPulls(client, comp.Commits)
 	if err != nil {
 		fmt.Println(err)
 		return NG
@@ -107,8 +111,6 @@ func realMain(owner, repo, releaseTag, labelInclusive string) int {
 	}
 
 	req := &ReleaseRequest{
-		Owner:                  owner,
-		Repo:                   repo,
 		ID:                     release.ID,
 		Name:                   releaseTag,
 		TagName:                releaseTag,
@@ -118,7 +120,7 @@ func realMain(owner, repo, releaseTag, labelInclusive string) int {
 		GenerateReleaseNotes:   false,
 		DiscussionCategoryName: nil,
 	}
-	release, err = UpdateRelease(client, req)
+	release, err = client.UpdateRelease(req)
 	if err != nil {
 		fmt.Println(err)
 		return NG

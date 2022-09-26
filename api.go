@@ -46,8 +46,6 @@ type Pull struct {
 }
 
 type ReleaseRequest struct {
-	Owner                  string
-	Repo                   string
 	ID                     int64
 	Name                   string  `json:"name"`
 	TagName                string  `json:"tag_name"`
@@ -60,8 +58,6 @@ type ReleaseRequest struct {
 }
 
 type CreateTagRequest struct {
-	Owner   string
-	Repo    string
 	Tag     string `json:"tag"`
 	Message string `json:"message"`
 	Object  string `json:"object"`
@@ -74,74 +70,80 @@ type Tag struct {
 	Sha string `json:"sha"`
 }
 
-func GetLatestCommit(client api.RESTClient, owner, repo string) (*Commit, error) {
-	path := fmt.Sprintf("repos/%s/%s/commits?page=1&per_page=1", owner, repo)
-	commits := []Commit{}
-	err := client.Get(path, &commits)
+type Client struct {
+	api.RESTClient
+	Owner string
+	Repo  string
+}
+
+func NewClient(client api.RESTClient, owner, repo string) *Client {
+	return &Client{
+		RESTClient: client,
+		Owner:      owner,
+		Repo:       repo,
+	}
+}
+
+func (c *Client) LatestCommit() (*Commit, error) {
+	path := fmt.Sprintf("repos/%s/%s/commits?page=1&per_page=1", c.Owner, c.Repo)
+	var commits []Commit
+	err := c.RESTClient.Get(path, &commits)
 	if err != nil {
 		return nil, err
 	}
 	if len(commits) == 0 {
-		return nil, nil
+		return &Commit{}, nil
 	}
 	return &commits[0], nil
 }
 
-func CreateTag(client api.RESTClient, req *CreateTagRequest) (*Tag, error) {
-	path := fmt.Sprintf("repos/%s/%s/git/tags", req.Owner, req.Repo)
+func (c *Client) CreateTag(req *CreateTagRequest) (*Tag, error) {
+	path := fmt.Sprintf("repos/%s/%s/git/tags", c.Owner, c.Repo)
 	b, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
-	tag := Tag{}
-	err = client.Post(path, bytes.NewBuffer(b), &tag)
+	var tag Tag
+	err = c.RESTClient.Post(path, bytes.NewBuffer(b), &tag)
 	return &tag, err
 }
 
-func CreateRelease(client api.RESTClient, req *ReleaseRequest) (*Release, error) {
-	path := fmt.Sprintf("repos/%s/%s/releases", req.Owner, req.Repo)
+func (c *Client) CreateRelease(req *ReleaseRequest) (*Release, error) {
+	path := fmt.Sprintf("repos/%s/%s/releases", c.Owner, c.Repo)
 	b, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
-	release := Release{}
-	err = client.Post(path, bytes.NewBuffer(b), &release)
+	var release Release
+	err = c.RESTClient.Post(path, bytes.NewBuffer(b), &release)
 	return &release, err
 }
 
-func UpdateRelease(client api.RESTClient, req *ReleaseRequest) (*Release, error) {
-	path := fmt.Sprintf("repos/%s/%s/releases/%d", req.Owner, req.Repo, req.ID)
-    fmt.Println(path)
-    fmt.Println(req)
+func (c *Client) UpdateRelease(req *ReleaseRequest) (*Release, error) {
+	path := fmt.Sprintf("repos/%s/%s/releases/%d", c.Owner, c.Repo, req.ID)
 	b, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
-	release := Release{}
-	err = client.Post(path, bytes.NewBuffer(b), &release)
+	var release Release
+	err = c.RESTClient.Post(path, bytes.NewBuffer(b), &release)
 	return &release, err
 }
 
-func GetRelease(client api.RESTClient, owner, repo, tag string) (*Release, error) {
-	path := fmt.Sprintf("repos/%s/%s/releases/tags/%s", owner, repo, tag)
-	release := &Release{}
-	err := client.Get(path, release)
-	return release, err
+func (c *Client) Release(tag string) (*Release, error) {
+	path := fmt.Sprintf("repos/%s/%s/releases/tags/%s", c.Owner, c.Repo, tag)
+	var release Release
+	err := c.RESTClient.Get(path, &release)
+	return &release, err
 }
 
-func GetPrevRelease(client api.RESTClient, owner, repo, tag string) (*Release, error) {
-	const seperator = "/"
-	parts := strings.SplitN(tag, seperator, 2)
-	prefix := ""
-	if len(parts) > 1 {
-		prefix = parts[0] + seperator
-	}
+func (c *Client) PrevRelease(tag, prefix string) (*Release, error) {
 	page := int(1)
 	per_page := int(30)
 	for {
-		path := fmt.Sprintf("repos/%s/%s/releases?per_page=%d&page=%d", owner, repo, per_page, page)
-		releases := []Release{}
-		err := client.Get(path, &releases)
+		path := fmt.Sprintf("repos/%s/%s/releases?per_page=%d&page=%d", c.Owner, c.Repo, per_page, page)
+		var releases []Release
+		err := c.RESTClient.Get(path, &releases)
 		if err != nil {
 			return nil, err
 		}
@@ -158,20 +160,21 @@ func GetPrevRelease(client api.RESTClient, owner, repo, tag string) (*Release, e
 		}
 		page++
 	}
+	// not found and return empty release object.
 	return &Release{}, nil
 }
 
-func GetCompare(client api.RESTClient, owner, repo, prevTag, newTag string) (*Compare, error) {
-	path := fmt.Sprintf("repos/%s/%s/compare/%s...%s", owner, repo, prevTag, newTag)
-	comp := Compare{}
-	err := client.Get(path, &comp)
-	return &comp, err
+func (c *Client) Compare(prevTag, newTag string) (*Compare, error) {
+	path := fmt.Sprintf("repos/%s/%s/compare/%s...%s", c.Owner, c.Repo, prevTag, newTag)
+	var compare Compare
+	err := c.RESTClient.Get(path, &compare)
+	return &compare, err
 }
 
-func GetCommitPulls(client api.RESTClient, owner, repo, commit string) ([]*Pull, error) {
-	path := fmt.Sprintf("repos/%s/%s/commits/%s/pulls", owner, repo, commit)
-	pulls := []*Pull{}
-	err := client.Get(path, &pulls)
+func (c *Client) PullsByCommit(commit string) ([]*Pull, error) {
+	path := fmt.Sprintf("repos/%s/%s/commits/%s/pulls", c.Owner, c.Repo, commit)
+	var pulls []*Pull
+	err := c.RESTClient.Get(path, &pulls)
 	return pulls, err
 }
 
