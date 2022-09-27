@@ -48,7 +48,7 @@ func filterPulls(pulls []*github.PullRequest, labelInclusive string) []*github.P
 				return true
 			}
 			return false
-		}) != 0 {
+		}) >= 0 {
 			filtered = append(filtered, p)
 		}
 	}
@@ -122,7 +122,7 @@ func realMain(releaseTag, labelInclusive string) int {
 
 	var builder strings.Builder
 	for _, p := range pulls {
-		line := fmt.Sprintf("- %s by @%s in %s\n", p.Title, p.User.Login, p.HTMLURL)
+		line := fmt.Sprintf("- %s by @%s in %s\n", p.GetTitle(), p.GetUser().GetLogin(), p.GetHTMLURL())
 		builder.WriteString(line)
 	}
 

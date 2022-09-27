@@ -61,7 +61,7 @@ func (c *releaseClient) Create(req *github.RepositoryRelease) (*github.Repositor
 }
 
 func (c *releaseClient) Update(req *github.RepositoryRelease) (*github.RepositoryRelease, error) {
-	path := fmt.Sprintf("repos/%s/%s/releases/%d", c.Owner, c.Repo, req.ID)
+	path := fmt.Sprintf("repos/%s/%s/releases/%d", c.Owner, c.Repo, req.GetID())
 	b, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
