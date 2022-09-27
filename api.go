@@ -10,59 +10,8 @@ import (
 
 	_ "github.com/cli/go-gh"
 	"github.com/cli/go-gh/pkg/api"
+	"github.com/google/go-github/v45/github"
 )
-
-type Release struct {
-	ID              int64  `json:"id"`
-	Name            string `json:"name"`
-	TagName         string `json:"tag_name"`
-	TargetCommitish string `json:"target_commitish"`
-}
-
-type Commit struct {
-	SHA string `json:"sha"`
-}
-
-type Compare struct {
-	Commits []*Commit `json:"commits"`
-}
-
-type User struct {
-	Login string `json:"login"`
-	URL   string `json:"url"`
-}
-
-type Label struct {
-	Name string `json:"name"`
-}
-
-type Pull struct {
-	Number  int64   `json:"number"`
-	Title   string  `json:"title"`
-	Labels  []Label `json:"labels"`
-	HTMLURL string  `json:"html_url"`
-
-	*User `json:"user"`
-}
-
-type ReleaseRequest struct {
-	ID                     int64
-	Name                   string  `json:"name"`
-	TagName                string  `json:"tag_name"`
-	TargetCommitish        string  `json:"target_commitish"`
-	Body                   string  `json:"body"`
-	Draft                  bool    `json:"draft"`
-	Prerelease             bool    `json:"prerelease"`
-	GenerateReleaseNotes   bool    `json:"generate_release_notes"`
-	DiscussionCategoryName *string `json:"discussion_category_name,omit_empty"`
-}
-
-type ReleaseCreateRequest ReleaseRequest
-type ReleaseUpdateRequest ReleaseRequest
-
-type Tag struct {
-	Tag string `json:"tag"`
-}
 
 type Client struct {
 	api.RESTClient
@@ -100,41 +49,41 @@ func (c *Client) Releases() *releaseClient {
 	}
 }
 
-func (c *releaseClient) Create(req *ReleaseCreateRequest) (*Release, error) {
+func (c *releaseClient) Create(req *github.RepositoryRelease) (*github.RepositoryRelease, error) {
 	path := fmt.Sprintf("repos/%s/%s/releases", c.Owner, c.Repo)
 	b, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
-	var release Release
+	var release github.RepositoryRelease
 	err = c.RESTClient.Post(path, bytes.NewBuffer(b), &release)
 	return &release, err
 }
 
-func (c *releaseClient) Update(req *ReleaseUpdateRequest) (*Release, error) {
+func (c *releaseClient) Update(req *github.RepositoryRelease) (*github.RepositoryRelease, error) {
 	path := fmt.Sprintf("repos/%s/%s/releases/%d", c.Owner, c.Repo, req.ID)
 	b, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
-	var release Release
+	var release github.RepositoryRelease
 	err = c.RESTClient.Post(path, bytes.NewBuffer(b), &release)
 	return &release, err
 }
 
-func (c *releaseClient) Tags(tag string) (*Release, error) {
+func (c *releaseClient) Tags(tag string) (*github.RepositoryRelease, error) {
 	path := fmt.Sprintf("repos/%s/%s/releases/tags/%s", c.Owner, c.Repo, tag)
-	var release Release
+	var release github.RepositoryRelease
 	err := c.RESTClient.Get(path, &release)
 	return &release, err
 }
 
-func (c *Client) PrevRelease(tag, prefix string) (*Release, error) {
+func (c *Client) PrevRelease(tag, prefix string) (*github.RepositoryRelease, error) {
 	page := int(1)
 	per_page := int(30)
 	for {
 		path := fmt.Sprintf("repos/%s/%s/releases?per_page=%d&page=%d", c.Owner, c.Repo, per_page, page)
-		var releases []Release
+		var releases []github.RepositoryRelease
 		err := c.RESTClient.Get(path, &releases)
 		if err != nil {
 			return nil, err
@@ -143,29 +92,29 @@ func (c *Client) PrevRelease(tag, prefix string) (*Release, error) {
 			break
 		}
 		for _, r := range releases {
-			if r.TagName == tag {
+			if r.GetTagName() == tag {
 				continue
 			}
-			if strings.HasPrefix(r.TagName, prefix) {
+			if strings.HasPrefix(r.GetTagName(), prefix) {
 				return &r, nil
 			}
 		}
 		page++
 	}
 	// not found and return empty release object.
-	return &Release{}, nil
+	return &github.RepositoryRelease{}, nil
 }
 
-func (c *Client) Compare(prevTag, newTag string) (*Compare, error) {
+func (c *Client) Compare(prevTag, newTag string) (*github.CommitsComparison, error) {
 	path := fmt.Sprintf("repos/%s/%s/compare/%s...%s", c.Owner, c.Repo, prevTag, newTag)
-	var compare Compare
+	var compare github.CommitsComparison
 	err := c.RESTClient.Get(path, &compare)
 	return &compare, err
 }
 
-func (c *commitClient) Pulls() ([]*Pull, error) {
+func (c *commitClient) Pulls() ([]*github.PullRequest, error) {
 	path := fmt.Sprintf("repos/%s/%s/commits/%s/pulls", c.Owner, c.Repo, c.Commit)
-	var pulls []*Pull
+	var pulls []*github.PullRequest
 	err := c.RESTClient.Get(path, &pulls)
 	return pulls, err
 }

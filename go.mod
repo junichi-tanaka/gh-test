@@ -7,9 +7,12 @@ require github.com/cli/go-gh v0.1.0
 require (
 	github.com/cli/safeexec v1.0.0 // indirect
 	github.com/cli/shurcooL-graphql v0.0.1 // indirect
+	github.com/google/go-github/v45 v45.2.0 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/henvic/httpretty v0.0.6 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/thlib/go-timezone-local v0.0.0-20210907160436-ef149e42d28e // indirect
+	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
 	golang.org/x/exp v0.0.0-20220921164117-439092de6870 // indirect
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
 	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect

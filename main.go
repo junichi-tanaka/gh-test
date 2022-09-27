@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh"
+	"github.com/google/go-github/v45/github"
 	"golang.org/x/exp/slices"
 )
 
@@ -22,11 +23,11 @@ type Flags struct {
 	LabelInclusive string
 }
 
-func commitsToPulls(client *Client, commits []*Commit) ([]*Pull, error) {
-	pulls := []*Pull{}
+func commitsToPulls(client *Client, commits []*github.RepositoryCommit) ([]*github.PullRequest, error) {
+	var pulls []*github.PullRequest
 
 	for _, c := range commits {
-		commitPulls, err := client.Commits(c.SHA).Pulls()
+		commitPulls, err := client.Commits(c.GetSHA()).Pulls()
 		if err != nil {
 			return nil, err
 		}
@@ -38,11 +39,16 @@ func commitsToPulls(client *Client, commits []*Commit) ([]*Pull, error) {
 	return pulls, nil
 }
 
-func filterPulls(pulls []*Pull, labelInclusive string) []*Pull {
-	filtered := []*Pull{}
+func filterPulls(pulls []*github.PullRequest, labelInclusive string) []*github.PullRequest {
+	var filtered []*github.PullRequest
 
 	for _, p := range pulls {
-		if slices.Contains(p.Labels, Label{Name: labelInclusive}) {
+		if slices.IndexFunc(p.Labels, func(l *github.Label) bool {
+			if l.GetName() == labelInclusive {
+				return true
+			}
+			return false
+		}) != 0 {
 			filtered = append(filtered, p)
 		}
 	}
@@ -71,14 +77,12 @@ func realMain(releaseTag, labelInclusive string) int {
 			fmt.Println(err)
 			return NG
 		} else {
-			req := &ReleaseCreateRequest{
-				Name:                   releaseTag,
-				TagName:                releaseTag,
-				Body:                   "",
-				Draft:                  false,
-				Prerelease:             false,
-				GenerateReleaseNotes:   false,
-				DiscussionCategoryName: nil,
+			req := &github.RepositoryRelease{
+				Name:                 github.String(releaseTag),
+				TagName:              github.String(releaseTag),
+				Draft:                github.Bool(false),
+				Prerelease:           github.Bool(false),
+				GenerateReleaseNotes: github.Bool(false),
 			}
 			release, err = client.Releases().Create(req)
 			if err != nil {
@@ -97,12 +101,12 @@ func realMain(releaseTag, labelInclusive string) int {
 		return NG
 	}
 
-	compareSince := prev.TagName
+	compareSince := prev.GetTagName()
 	if compareSince == "" {
 		compareSince = fmt.Sprintf("%s@{1990-01-01}", release.TargetCommitish)
 	}
 
-	comp, err := client.Compare(compareSince, release.TagName)
+	comp, err := client.Compare(compareSince, release.GetTagName())
 	if err != nil {
 		fmt.Println(err)
 		return NG
@@ -122,15 +126,14 @@ func realMain(releaseTag, labelInclusive string) int {
 		builder.WriteString(line)
 	}
 
-	req := &ReleaseUpdateRequest{
-		ID:                     release.ID,
-		Name:                   releaseTag,
-		TagName:                releaseTag,
-		Body:                   builder.String(),
-		Draft:                  false,
-		Prerelease:             false,
-		GenerateReleaseNotes:   false,
-		DiscussionCategoryName: nil,
+	req := &github.RepositoryRelease{
+		ID:                   github.Int64(release.GetID()),
+		Name:                 github.String(releaseTag),
+		TagName:              github.String(releaseTag),
+		Body:                 github.String(builder.String()),
+		Draft:                github.Bool(false),
+		Prerelease:           github.Bool(false),
+		GenerateReleaseNotes: github.Bool(false),
 	}
 	release, err = client.Releases().Update(req)
 	if err != nil {
